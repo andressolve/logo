@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Block-Based Logo Turtle</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Lexend+Deca:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #111827; /* bg-gray-900 */
+        }
+        .font-display { font-family: 'Lexend Deca', sans-serif; }
+        .challenge-card { transition: all 0.3s ease; }
+        .challenge-card.active {
+            background-color: #374151; /* bg-gray-700 */
+            border-color: #10B981; /* border-emerald-500 */
+        }
+        .challenge-card.completed {
+            background-color: #1F2937; /* bg-gray-800 */
+            opacity: 0.7;
+        }
+        .challenge-card.completed .challenge-title::after {
+            content: '✓';
+            color: #10B981; /* text-emerald-500 */
+            margin-left: 8px;
+            font-weight: bold;
+        }
+        .toolbox-block, .program-block {
+            cursor: grab;
+            user-select: none;
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-bottom: 12px;
+            font-weight: 500;
+            color: white;
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap; /* Allow content to wrap to the next line */
+            gap: 8px;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+        }
+        .program-block input {
+            background: #374151; /* bg-gray-700 */
+            border: 1px solid #4B5563; /* border-gray-600 */
+            border-radius: 4px;
+            width: 70px;
+            padding: 4px 8px;
+            color: white;
+            text-align: center;
+        }
+        .program-block input:focus {
+            outline: none;
+            border-color: #10B981; /* border-emerald-500 */
+            box-shadow: 0 0 0 2px #10B98133;
+        }
+        .drop-zone {
+            min-height: 200px;
+            border: 2px dashed #4B5563; /* border-gray-600 */
+            border-radius: 12px;
+            background: #1F2937; /* bg-gray-800 */
+            padding: 16px;
+            transition: background-color 0.2s ease;
+        }
+        .drop-zone.drag-over {
+            background-color: #374151; /* bg-gray-700 */
+            border-color: #10B981;
+        }
+        .drop-zone.nested {
+            position: relative;
+            min-height: 60px;
+            background: #111827; /* bg-gray-900 */
+            border-radius: 6px;
+            padding: 8px;
+        }
+        .drop-zone.nested:empty::before {
+            content: attr(data-placeholder);
+            color: #6B7280; /* gray-500 */
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            font-style: italic;
+            font-size: 0.875rem;
+        }
+        .turtle {
+            /* Remove transition from CSS to allow JS to control it smoothly */
+            position: absolute;
+            color: #34D399; /* emerald-400 */
+        }
+        .success-box {
+            position: absolute;
+            bottom: 1rem;
+            left: 1rem;
+            right: 1rem;
+            z-index: 10;
+            transition: opacity 0.3s ease, transform 0.3s ease;
+        }
+        .success-box.hidden {
+            opacity: 0;
+            transform: translateY(10px);
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body class="text-gray-200 p-6">
+
+    <!-- Introduction Section -->
+    <div class="bg-gray-800 p-6 rounded-xl shadow-lg mb-6 text-center">
+        <h1 class="font-display text-3xl font-bold text-emerald-400 mb-2">Welcome to Block-Based Turtle Graphics!</h1>
+        <p class="text-gray-300 max-w-3xl mx-auto">
+            Inspired by the classic Logo programming language, this activity lets you learn the fundamentals of coding by giving commands to a "turtle". Drag blocks from the toolbox, build your program, and watch your geometric creations come to life on the canvas.
+        </p>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        
+        <!-- Left Panel: Challenges & Toolbox -->
+        <div class="lg:col-span-3 space-y-6">
+            <!-- Challenges -->
+            <div class="bg-gray-800 p-5 rounded-xl shadow-lg">
+                <h2 class="font-display text-2xl font-bold mb-4 text-emerald-400">Challenges</h2>
+                <div id="challenges-list" class="space-y-3"></div>
+            </div>
+            <!-- Toolbox -->
+            <div class="bg-gray-800 p-5 rounded-xl shadow-lg">
+                <h2 class="font-display text-2xl font-bold mb-2 text-emerald-400">Toolbox</h2>
+                <p class="text-sm text-gray-400 mb-4">Drag blocks to the program area.</p>
+                <div id="toolbox"></div>
+            </div>
+        </div>
+
+        <!-- Middle Panel: Program & Controls -->
+        <div class="lg:col-span-5 flex flex-col">
+             <div class="bg-gray-800 p-5 rounded-xl shadow-lg flex-grow flex flex-col">
+                <h2 class="font-display text-2xl font-bold mb-4 text-emerald-400">Program</h2>
+                <div id="program-area" class="drop-zone flex-grow"></div>
+                <div class="flex gap-4 mt-4">
+                    <button id="run-button" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 px-4 rounded-lg text-lg shadow-md transition-transform hover:scale-105">Run</button>
+                    <button id="reset-button" class="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-4 rounded-lg text-lg shadow-md transition-transform hover:scale-105">Reset</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Panel: Canvas and Success Message -->
+        <div class="lg:col-span-4 flex flex-col">
+            <div class="bg-gray-800 p-4 rounded-xl shadow-lg flex-grow">
+                <div id="canvas-container" class="relative w-full h-full min-h-[300px] lg:min-h-0">
+                    <canvas id="turtle-canvas" class="absolute top-0 left-0 w-full h-full bg-gray-900 rounded-lg"></canvas>
+                    <div id="turtle" class="turtle">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-navigation"><path d="m12 2 7 19-7-4-7 4 7-19z"/></svg>
+                    </div>
+                     <!-- Success Message Box -->
+                    <div id="success-box" class="success-box hidden bg-emerald-900/50 border-2 border-emerald-500 p-4 rounded-xl text-center backdrop-blur-sm">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- DOM Elements ---
+        const challengesList = document.getElementById('challenges-list');
+        const toolbox = document.getElementById('toolbox');
+        const programArea = document.getElementById('program-area');
+        const runButton = document.getElementById('run-button');
+        const resetButton = document.getElementById('reset-button');
+        const canvas = document.getElementById('turtle-canvas');
+        const ctx = canvas.getContext('2d');
+        const turtleElement = document.getElementById('turtle');
+        const successBox = document.getElementById('success-box');
+
+        // --- State ---
+        let turtleState = {};
+        let currentChallengeIndex = 0;
+        let drawnPath = []; // To check against solution
+
+        // --- Turtle Logic ---
+        const turtle = {
+            reset: () => {
+                const rect = canvas.getBoundingClientRect();
+                if (!rect.width || !rect.height) return; // Avoid errors on initialization before layout
+                canvas.width = rect.width;
+                canvas.height = rect.height;
+                
+                turtleState = {
+                    x: canvas.width / 2,
+                    y: canvas.height / 2,
+                    angle: -90, // Pointing up
+                    penDown: true,
+                };
+                
+                drawnPath = [[Math.round(turtleState.x), Math.round(turtleState.y)]];
+
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                ctx.strokeStyle = '#34D399';
+                ctx.lineWidth = 3;
+                ctx.lineCap = 'round';
+                ctx.beginPath(); // Important: reset the path
+                ctx.moveTo(turtleState.x, turtleState.y);
+                turtle.updateElement();
+            },
+            updateElement: () => {
+                const turtleX = turtleState.x - turtleElement.offsetWidth / 2;
+                const turtleY = turtleState.y - turtleElement.offsetHeight / 2;
+                turtleElement.style.left = `${turtleX}px`;
+                turtleElement.style.top = `${turtleY}px`;
+                turtleElement.style.transform = `rotate(${turtleState.angle + 90}deg)`;
+            },
+            forward: (distance) => {
+                return new Promise(resolve => {
+                    const speed = 75; // Slower speed in pixels per second
+                    const duration = (Math.abs(distance) / speed) * 1000;
+                    const angleRad = turtleState.angle * (Math.PI / 180);
+                    const startX = turtleState.x;
+                    const startY = turtleState.y;
+                    const targetX = startX + distance * Math.cos(angleRad);
+                    const targetY = startY + distance * Math.sin(angleRad);
+                    let startTime = null;
+
+                    ctx.moveTo(startX, startY);
+
+                    function animate(currentTime) {
+                        if (!startTime) startTime = currentTime;
+                        const elapsedTime = currentTime - startTime;
+                        const progress = Math.min(elapsedTime / duration, 1);
+
+                        const currentX = startX + (targetX - startX) * progress;
+                        const currentY = startY + (targetY - startY) * progress;
+                        
+                        turtleState.x = currentX;
+                        turtleState.y = currentY;
+
+                        if (turtleState.penDown) {
+                            ctx.lineTo(turtleState.x, turtleState.y);
+                            ctx.stroke();
+                        }
+                        ctx.moveTo(turtleState.x, turtleState.y);
+
+                        turtle.updateElement();
+
+                        if (progress < 1) {
+                            requestAnimationFrame(animate);
+                        } else {
+                            turtleState.x = targetX;
+                            turtleState.y = targetY;
+                            drawnPath.push([Math.round(turtleState.x), Math.round(turtleState.y)]);
+                            turtle.updateElement();
+                            resolve();
+                        }
+                    }
+                    requestAnimationFrame(animate);
+                });
+            },
+            turn: (degrees) => {
+                 return new Promise(resolve => {
+                    const turnSpeed = 180; // degrees per second
+                    const duration = (Math.abs(degrees) / turnSpeed) * 1000;
+                    const startAngle = turtleState.angle;
+                    const targetAngle = startAngle + degrees;
+                    let startTime = null;
+                    
+                    function animateTurn(currentTime) {
+                        if (!startTime) startTime = currentTime;
+                        const elapsedTime = currentTime - startTime;
+                        const progress = Math.min(elapsedTime / duration, 1);
+
+                        turtleState.angle = startAngle + (targetAngle - startAngle) * progress;
+                        turtle.updateElement();
+
+                        if (progress < 1) {
+                            requestAnimationFrame(animateTurn);
+                        } else {
+                            turtleState.angle = targetAngle;
+                            turtle.updateElement();
+                            resolve();
+                        }
+                    }
+                    requestAnimationFrame(animateTurn);
+                });
+            }
+        };
+
+        // --- Challenges ---
+        const challenges = [
+            {
+                title: "Draw a Line",
+                description: "Your first task is to make the turtle move. Use the `forward` block to draw a line 100 steps long.",
+            },
+            {
+                title: "Draw a Corner",
+                description: "Combine movement and turning. Draw a line 100 steps long, then make a 90-degree right turn and draw another 100-step line to form a sharp corner.",
+            },
+            {
+                title: "Draw a Square",
+                description: "A square has four equal sides and four 90-degree corners. Hint: The `repeat` block is perfect for shapes with repeating patterns!",
+            }
+        ];
+
+        // --- UI & Challenge Management ---
+        function renderChallenges() {
+            challengesList.innerHTML = '';
+            challenges.forEach((challenge, index) => {
+                const card = document.createElement('div');
+                card.className = 'challenge-card bg-gray-900 border-2 border-transparent p-4 rounded-lg cursor-pointer';
+                if (index < currentChallengeIndex) card.classList.add('completed');
+                if (index === currentChallengeIndex) card.classList.add('active');
+                
+                card.innerHTML = `<h3 class="challenge-title font-bold text-lg text-white">${challenge.title}</h3><p class="text-sm text-gray-400">${challenge.description}</p>`;
+                card.onclick = () => {
+                    if (index <= currentChallengeIndex) { // Allow revisiting completed challenges
+                        currentChallengeIndex = index;
+                        renderChallenges();
+                        resetProgram();
+                    }
+                };
+                challengesList.appendChild(card);
+            });
+        }
+        
+        function showSuccessMessage() {
+            let title = `${challenges[currentChallengeIndex].title} Complete!`;
+            let message, buttonText, buttonAction;
+
+            if (currentChallengeIndex < challenges.length - 1) {
+                message = "Awesome work! Ready for the next one?";
+                buttonText = "Next Challenge";
+                buttonAction = () => {
+                    successBox.classList.add('hidden');
+                    currentChallengeIndex++;
+                    renderChallenges();
+                    resetProgram();
+                };
+            } else {
+                message = "You've completed all the challenges! You're a Logo master!";
+                buttonText = "Start Over";
+                buttonAction = () => {
+                    successBox.classList.add('hidden');
+                    currentChallengeIndex = 0;
+                    renderChallenges();
+                    resetProgram();
+                };
+            }
+
+            successBox.innerHTML = `
+                <div class="text-2xl mb-2">🎉</div>
+                <h2 class="font-display text-xl font-bold text-white mb-1">${title}</h2>
+                <p class="text-gray-300 mb-3">${message}</p>
+                <button id="success-action-button" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-4 rounded-lg text-md shadow-md transition-transform hover:scale-105">${buttonText}</button>
+            `;
+            successBox.classList.remove('hidden');
+            document.getElementById('success-action-button').onclick = buttonAction;
+        }
+
+        function checkSolution() {
+            if (!canvas.width) return false; // Canvas not ready
+            const startX = Math.round(canvas.width / 2);
+            const startY = Math.round(canvas.height / 2);
+            let expectedPath;
+            if (currentChallengeIndex === 0) { // Line
+                expectedPath = [[startX, startY], [startX, startY - 100]];
+            } else if (currentChallengeIndex === 1) { // Corner
+                expectedPath = [[startX, startY], [startX, startY - 100], [startX + 100, startY - 100]];
+            } else if (currentChallengeIndex === 2) { // Square
+                expectedPath = [[startX, startY], [startX, startY - 100], [startX + 100, startY - 100], [startX + 100, startY], [startX, startY]];
+            }
+
+            if (drawnPath.length !== expectedPath.length) return false;
+            for(let i=0; i < drawnPath.length; i++) {
+                // Use a tolerance for floating point inaccuracies
+                if(Math.abs(drawnPath[i][0] - expectedPath[i][0]) > 5 || Math.abs(drawnPath[i][1] - expectedPath[i][1]) > 5) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        // --- Block & Program Logic ---
+        const availableBlocks = {
+            forward: { color: 'bg-blue-600', toolboxHtml: 'forward', programHtml: 'forward <input type="number" value="100" />' },
+            turn: { color: 'bg-purple-600', toolboxHtml: 'turn', programHtml: 'turn <input type="number" value="90" />' },
+            repeat: { color: 'bg-orange-600', toolboxHtml: 'repeat', programHtml: 'repeat <input type="number" value="4" /> times <div class="drop-zone nested mt-2 w-full" data-placeholder="Drop blocks here"></div>' }
+        };
+
+        function renderToolbox() {
+            toolbox.innerHTML = '';
+            for (const [key, block] of Object.entries(availableBlocks)) {
+                const el = document.createElement('div');
+                el.className = `toolbox-block ${block.color}`;
+                el.innerHTML = block.toolboxHtml;
+                el.draggable = true;
+                el.dataset.type = key;
+                el.addEventListener('dragstart', handleDragStart);
+                toolbox.appendChild(el);
+            }
+        }
+        
+        function resetProgram() {
+            programArea.innerHTML = '';
+            successBox.classList.add('hidden');
+            turtle.reset();
+        }
+
+        async function runProgram() {
+            runButton.disabled = true;
+            runButton.textContent = "Running...";
+            successBox.classList.add('hidden');
+            turtle.reset();
+            await executeContainer(programArea);
+            
+            if(checkSolution()) {
+                showSuccessMessage();
+            }
+
+            runButton.disabled = false;
+            runButton.textContent = "Run";
+        }
+
+        async function executeContainer(container) {
+            const blocks = [...container.children].filter(el => el.classList.contains('program-block'));
+            for (const block of blocks) {
+                const type = block.dataset.type;
+                const input = block.querySelector('input');
+                const value = input ? parseFloat(input.value) : 0;
+
+                if (type === 'forward') {
+                    await turtle.forward(value);
+                } else if (type === 'turn') {
+                    await turtle.turn(value);
+                } else if (type === 'repeat') {
+                    const nestedContainer = block.querySelector('.drop-zone.nested');
+                    for (let i = 0; i < value; i++) {
+                        await executeContainer(nestedContainer);
+                    }
+                }
+            }
+        }
+
+        // --- Drag and Drop Handlers ---
+        let draggedItem = null;
+
+        function handleDragStart(e) {
+            draggedItem = e.target;
+            setTimeout(() => e.target.style.opacity = '0.5', 0);
+        }
+
+        function handleDragEnd(e) {
+            setTimeout(() => {
+                if (draggedItem) draggedItem.style.opacity = '1';
+                draggedItem = null;
+            }, 0);
+        }
+
+        function handleDragOver(e) {
+            e.preventDefault();
+            const dropZone = e.target.closest('.drop-zone');
+            if (dropZone) {
+                dropZone.classList.add('drag-over');
+            }
+        }
+
+        function handleDragLeave(e) {
+            const dropZone = e.target.closest('.drop-zone');
+            if (dropZone) {
+                dropZone.classList.remove('drag-over');
+            }
+        }
+
+        function handleDrop(e) {
+            e.preventDefault();
+            e.stopPropagation(); // Prevent event from bubbling up to parent drop zones
+            const dropZone = e.target.closest('.drop-zone');
+            if (dropZone && draggedItem) {
+                dropZone.classList.remove('drag-over');
+                const blockType = draggedItem.dataset.type;
+                const blockInfo = availableBlocks[blockType];
+                
+                const newBlock = document.createElement('div');
+                newBlock.className = `program-block ${blockInfo.color}`;
+                newBlock.innerHTML = blockInfo.programHtml;
+                newBlock.dataset.type = blockType;
+
+                // Add event listeners to nested drop zones if they exist
+                const nestedZones = newBlock.querySelectorAll('.drop-zone.nested');
+                nestedZones.forEach(zone => {
+                    zone.addEventListener('dragover', handleDragOver);
+                    zone.addEventListener('dragleave', handleDragLeave);
+                    zone.addEventListener('drop', handleDrop);
+                });
+                
+                dropZone.appendChild(newBlock);
+            }
+        }
+        
+        programArea.addEventListener('dragover', handleDragOver);
+        programArea.addEventListener('dragleave', handleDragLeave);
+        programArea.addEventListener('drop', handleDrop);
+        document.body.addEventListener('dragend', handleDragEnd);
+
+        // --- Initialization ---
+        function init() {
+            renderChallenges();
+            renderToolbox();
+            // Use requestAnimationFrame to ensure layout is calculated before resetting turtle
+            requestAnimationFrame(turtle.reset);
+            window.addEventListener('resize', turtle.reset);
+            runButton.addEventListener('click', runProgram);
+            resetButton.addEventListener('click', resetProgram);
+        }
+
+        window.onload = init;
+    </script>
+</body>
+</html>
